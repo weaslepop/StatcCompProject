@@ -1,0 +1,290 @@
+---
+title: "Stat Comp Project Topic 1 Problem 2"
+author: "Alexander Popolow"
+date: "2024-11-22"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, echo=false}
+library(data.table)
+library(ggplot2)
+```
+
+## Explaining Theory Behind Quasi-Newton Methods 
+<!-- Focus on BFGS updates -->
+### Introducing Quasi-Newton Methods
+  Quasi-Newton methods are similar to steepest descent in that they only require the gradient of the objective function to be supplied at each iteration. By measuring the changes in gradients, they construct a model of the objective function that is good enough to produce superlinear convergence.
+
+
+  The general process for Quasi-Newton methods is that at each time $t$, when $x(t)$ is updated based on $x(t+1) = x(t) + h(t)$, an opportunity is available to learn about the curvature of $\nabla f$ in the direction of $h(t)$ near $x(t)$. 
+
+The matrix approximation of the Hessian, $M(t)$, can be efficiently and dynamically updated to incorporate this information.
+
+Then, we can say that $M(t+1)$ satisfies the secant condition if $\nabla f(x(t+1)) - \nabla f(x(t)) = M(t+1)(x(t+1) - x(t))$.
+
+  This process is iterative, such that the Hessian approximation is not fully recalculated each time, but rather updated using the previous step, which is comparatively more computationally efficient. It allows us to learn about the curvature of $\nabla f$, and initializing this approach is fairly easy as we can use $M(1) = I$ or the Fisher information matrix if that is known.
+
+### BFGS Updates
+  One popular Quasi-Newton method is the BFGS update method. In order to explain this, let $z(t) = x(t+1) - x(t)$ and $y(t) = \nabla f(t+1) - \nabla f(t)$.
+The update rule of $M(t)$ in this method is 
+$$
+M(t+1) = M(t) - \frac{M(t)z(t)[M(t)z(t)]^T}{[z(t)]^TM(t)z(t)} + \frac{y(t)[y(t)]^T}{[z(t)]^Ty(t)} 
+$$
+
+
+
+
+## Comparing Convergence Rates of Quasi-Newton with Gradient Descent and Newton's Method
+<!-- Use the math explanations to compare the convergence rates. maybe use code too if it doesn't seem too cumbersome -->
+
+  The Quasi-Newton methods provide a fantastic middle ground between Newton's Method and Gradient Ascent and Descent methods in terms of convergence and computation. Newton's Method provides a faster convergence rate than Quasi-Newton methods as it has quadratic convergence near the optimum, however, calculating the Hessian can be very expensive depending on the model and it does not guarantee ascent either. As such, the Quasi-Newton methods are much easier to implement than Newton's Method, and they do not lose out too much in terms of convergence due to the super-linear convergence.
+  On the other end of the convergence algorithms, there is the Gradient Ascent and Descent methods. These methods are fairly simple, as they only require knowledge of the gradient, like Quasi-Newton. But these methods are even slower than Quasi-Newton, requiring small step sizes that can greatly slow down convergence unless there is already a very good guess of the optimum. These differences can be seen in the following example, comparing an optimization problem using all three methods.
+
+
+
+In this case, we will use a quadratic function and will use the methods to find the minimum. This quadratic function is of the form $f(x) = \frac{1}{2}x^TAx - b^Tx$, where $A$ is a symmetric matrix and $b$ is a vector. Moreover, because $A$ is nearly singular in this case, Newton's Method requires a special way of approximating the Hessian, further exemplifying its quality of not being that simple.
+<!-- add graphing ability to measure rate of convergence -->
+```{r}
+# Setting the seed for reproducibility
+set.seed(123)
+
+# Defining the quadratic function
+f <- function(x,A,b){
+  return(0.5*t(x)%*%A%*%x - t(b)%*%x)
+}
+
+# Defining the gradient of the quadratic function
+grad_f <- function(x,A,b){
+  return(A%*%x - b)
+}
+
+# Gradient Descent Algorithm
+grad_descent <- function(f, grad_f, x_init, A,b, step_size=0.01, tol=1e-6, max_iter=1000){
+   x <- x_init
+   #creating vector to store values to measure convergence
+   values <- c(rep(NA, max_iter))
+  for (i in 1:max_iter) {
+    grad <- grad_f(x, A, b)
+    
+    # Check for convergence
+    if (sqrt(sum(grad^2)) < tol) {
+      plot(values, xlab="Iteration", ylab="Objective Function", main="Gradient Descent Convergence")
+      cat("Gradient descent converged after", i, "iterations.\n")
+      return(x)
+    }
+    
+    # Update step
+    x <- x - step_size * grad
+    values[i] <- f(x,A,b)
+  }
+  
+  warning("Gradient descent did not converge")
+  return(x)
+}
+
+# Finite difference approximation of the Hessian for Newton's Method
+finite_difference_hessian <- function(f,x,A,b,h=1e-6){
+  n <- length(x)
+  H <- matrix(0, n, n)
+  f_x <- f(x, A, b)  # Evaluate f at the current point
+  
+  for (i in 1:n) {
+    for (j in 1:n) {
+      x_ij <- x
+      x_ij[i] <- x[i] + h
+      x_ij[j] <- x[j] + h
+      f_ij <- f(x_ij, A, b)
+      
+      H[i, j] <- (f_ij - f_x) / h^2
+    }
+  }
+  
+  return(H)
+}
+
+# Newton's method with finite difference Hessian approximation
+newton_finite_difference <- function(f, grad_f, x_init, A, b, tol = 1e-10, max_iter = 1000) {
+  x <- x_init
+  # creating a list to store convergence values at each iteration for plotting
+    convergence_values <- c(rep(NA, max_iter))
+  for (i in 1:max_iter) {
+    grad <- grad_f(x, A, b)
+    
+    # Check if gradient norm is below the tolerance
+    if (sqrt(sum(grad^2)) < tol) {
+      # plotting convergence values to measure convergence
+      plot(convergence_values, xlab="Iteration", ylab="Objective function value", main="Newton's Method Convergence")
+      cat("Newton method with finite difference Hessian converged after", i, "iterations.\n")
+      return(x)
+    }
+    
+    # Approximate Hessian using finite difference
+    H <- finite_difference_hessian(f, x, A, b)
+    
+    # Update step using the Hessian approximation
+    step <- tryCatch({
+      solve(H) %*% grad
+    }, error = function(e) {
+      cat("Hessian approximation is singular or ill-conditioned after", i, "iterations.\n")
+      return(rep(NA, length(x)))  # Return NA if the Hessian is singular
+    })
+    
+    if (all(is.na(step))) break
+    
+    # Update x
+    x <- x - step
+    convergence_values[i] <- f(x,A,b) # adding new x value to list
+  }
+  
+  # plotting convergence values to measure convergence
+  plot(convergence_values, xlab="Iteration", ylab="Objective function value", main="Newton's Method Convergence")
+  warning("Newton's method with finite difference Hessian did not converge")
+  return(x)
+}
+
+
+# Using optim() to run BFGS method
+BFGS_optim <- function(f, grad_f, A,b, x_init){
+  # creating a list to store convergence values
+  convergence_values <- list()
+  obj_func <- function(x){ # recreating f to fit optim requirements and adding a function to trace the values for plotting convergence
+    value <- 0.5*t(x)%*%A%*%x - t(b)%*%x
+    convergence_values <<- c(convergence_values, value)
+    return(value)
+  }
+  grad_func <- function(x){ # recreating grad_f to fit optim requirements
+    return(A%*%x - b)
+  }
+  result <- optim(par=x_init, fn=obj_func, gr=grad_func, method="BFGS")
+  #converting convergence values to numeric
+  convergence_values <- unlist(convergence_values)
+  plot(convergence_values, xlab="Iteration", ylab="Objective Function Value", main="Convergence of optim")
+  return(result$par)
+}
+
+# Defining A
+A <- matrix(c(1,0.999,0.999,1),2,2) # nearly singular matrix
+b <- c(1,2)
+
+# Initial guess
+x_init <- c(-400,600)
+
+# Run Gradient Descent
+descent <- grad_descent(f,grad_f,x_init, A,b, step_size = 0.01)
+time_descent <- system.time(grad_descent(f,grad_f,x_init, A,b, step_size = 0.01))
+
+# Run Newton's Method
+newton <- newton_finite_difference(f,grad_f, x_init, A,b)
+time_newton <- system.time(newton_finite_difference(f,grad_f, x_init, A,b))
+
+# Run BFGS Method
+bfgs <- BFGS_optim(f,grad_f, A,b, x_init)
+time_bfgs <- system.time(BFGS_optim(f,grad_f, A,b, x_init))
+
+# Computing the true solution for comparison
+x_true <- solve(A,b)
+
+# Printing results
+cat("\n\n True Solution:\n", x_true, "\n\n")
+cat("Results from each method:\n")
+cat("Newton's Method:\n", newton, "\n\n")
+cat("Gradient Descent:\n", descent, "\n\n")
+cat("BFGS via optim:\n", bfgs, "\n\n")
+
+# Printing time taken for results
+cat("Time spent on convergence from each method:\n")
+cat("Newton's Method:\n", time_newton[1:3], "\n\n")
+cat("Gradient Descent:\n", time_descent[1:3], "\n\n")
+cat("BFGS via optim:\n", time_bfgs[1:3], "\n\n")
+```
+As can be seen by these results, the Gradient Descent and BFGS (Quasi-Newton) methods both obtained the true value of the function, however, the BFGS method was even faster than the Gradient Descent. Although the time calculation of the methods were affected by the storing of values for the plotting of convergence, this adjustment was done to all of them, so the impact should be roughly equivalent for the affected time increase. Additionally, it can be seen that the BFGS method took only about 5 iterations to find the result, which is an exceedingly faster convergence rate than the Gradient Descent method which took 965 iterations. Although the time difference is small here, in higher dimensions this could make the difference between minutes and hours. Additionally, I also have to mention Newton's Method, which we see that it was not even able to find an optimum within 1000 iterations. Despite its ability to converge quadratically in optimal conditions, in this case we see a definitely linear and extremely slow convergence, as seen by the extremely minimal decrease in the objective function value between the start and finish of the iterations. These results reinforce why Quasi-Newton methods are so highly adored, as they are relatively low-hassle to set up while also having great convergence, even as the number of dimensions increases, which we shall explore in the next part.
+
+
+
+
+## Implementing the BFGS algorithm and applying it to a high-dimensional logistic regression problem.
+In this case, I will again use optim to implement BFGS, but this time it will be for a logistic regression problem that is high-dimensional. I have chosen the wine quality data from Homework 2, only this time I will use the 11 other variables to predict wine quality rather than just 4.
+The log-likelihood for logistic regression is given by:
+$$
+l(\beta) = \sum^n_{i=1}[y_i log(p_i)+(1-y_i)log(1-p_i)]
+$$
+
+<!-- Perhaps change dataset to a higher dimensional one -->
+
+```{r}
+wine_data <- fread("winequality-white.csv")
+# logistic regression log-likelihood function
+log_likelihood <- function(beta, X,y){
+  p <- 1 / (1+exp(-(X%*%beta)))
+  return(sum(y*log(p)+(1-y)*log(1-p)))
+}
+
+# Gradient of the log-likelihood
+log_likelihood_gradient <- function(beta, X, y){
+  p <- 1 / (1+exp(-(X%*%beta)))
+  return(t(X)%*%(y-p))
+}
+
+# Setting the seed for reproducibility
+set.seed(123)
+
+# Creating binary response variable for a binary logistic regression where quality >= 6: 1, else: 0
+response <- ifelse(wine_data$quality>=6,1,0)
+
+# creating X matrix (predictors)
+predictors <- wine_data[,-12]
+
+# normalizing the predictors
+predictors <- scale(predictors)
+
+# Creating design matrix with an intercept using the predictors
+X <- cbind(1, predictors)
+variables <- c("Intercept", colnames(X)[-1])
+
+# Creating initial guess for the regression coefficients
+beta_init <- rep(0, ncol(X))
+
+# Creating BFGS function for using optim to calculate coefficients while also plotting convergence
+BFGS_logistic <- function(X, y, beta_init, log_likelihood, log_likelihood_gradient){
+  # Creating list for convergence values
+  convergence_values <- list()
+  # creating larger wrapped function to also measure values for graphing convergence
+  likelihood_wrapper <- function(X,y,beta){
+    value <- log_likelihood(beta, X,y)
+    convergence_values <<- c(convergence_values, value)
+    return(value)
+  }
+  result <- optim(par=beta_init, fn=likelihood_wrapper,gr=log_likelihood_gradient, X=X,y=y, method="BFGS")
+  convergence_values <- unlist(convergence_values)
+  plot(convergence_values, xlab="Iteration", ylab="Log-Likelihood Value", main="Convergence of optim")
+  return(result$par)
+  
+}
+
+# Running BFGS for high-dimension dataset
+result <- BFGS_logistic(X,response,beta_init,log_likelihood,log_likelihood_gradient)
+time <- system.time(BFGS_logistic(X,response,beta_init,log_likelihood,log_likelihood_gradient))
+
+# Printing the results
+cat("The BFGS estimated regression coefficients are:\n\n")
+for(i in 1:ncol(X)){
+  cat(variables[i],":", round(result[i],3), "\n")
+}
+
+cat("\n\n The time used for the BFGS logistic regression plus graphing is: \n")
+time
+
+
+
+
+```
+
+<!-- add some specific review and analysis once satisfied with size of dataset -->
+
+
+
+## References
