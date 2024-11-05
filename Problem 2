@@ -47,6 +47,7 @@ $$
 
 
 In this case, we will use a quadratic function and will use the methods to find the minimum. This quadratic function is of the form $f(x) = \frac{1}{2}x^TAx - b^Tx$, where $A$ is a symmetric matrix and $b$ is a vector. Moreover, because $A$ is nearly singular in this case, Newton's Method requires a special way of approximating the Hessian, further exemplifying its quality of not being that simple.
+
 <!-- add graphing ability to measure rate of convergence -->
 ```{r}
 # Setting the seed for reproducibility
@@ -72,9 +73,8 @@ grad_descent <- function(f, grad_f, x_init, A,b, step_size=0.01, tol=1e-6, max_i
     
     # Check for convergence
     if (sqrt(sum(grad^2)) < tol) {
-      plot(values, xlab="Iteration", ylab="Objective Function", main="Gradient Descent Convergence")
       cat("Gradient descent converged after", i, "iterations.\n")
-      return(x)
+      return(list(x=x, convergence_values=values))
     }
     
     # Update step
@@ -116,10 +116,8 @@ newton_finite_difference <- function(f, grad_f, x_init, A, b, tol = 1e-10, max_i
     
     # Check if gradient norm is below the tolerance
     if (sqrt(sum(grad^2)) < tol) {
-      # plotting convergence values to measure convergence
-      plot(convergence_values, xlab="Iteration", ylab="Objective function value", main="Newton's Method Convergence")
       cat("Newton method with finite difference Hessian converged after", i, "iterations.\n")
-      return(x)
+      return(list(x=x, convergence_values=convergence_values))
     }
     
     # Approximate Hessian using finite difference
@@ -140,10 +138,8 @@ newton_finite_difference <- function(f, grad_f, x_init, A, b, tol = 1e-10, max_i
     convergence_values[i] <- f(x,A,b) # adding new x value to list
   }
   
-  # plotting convergence values to measure convergence
-  plot(convergence_values, xlab="Iteration", ylab="Objective function value", main="Newton's Method Convergence")
   warning("Newton's method with finite difference Hessian did not converge")
-  return(x)
+  return(list(x=x, convergence_values=convergence_values))
 }
 
 
@@ -162,8 +158,7 @@ BFGS_optim <- function(f, grad_f, A,b, x_init){
   result <- optim(par=x_init, fn=obj_func, gr=grad_func, method="BFGS")
   #converting convergence values to numeric
   convergence_values <- unlist(convergence_values)
-  plot(convergence_values, xlab="Iteration", ylab="Objective Function Value", main="Convergence of optim")
-  return(result$par)
+  return(list(x = result$par, convergence_values=convergence_values))
 }
 
 # Defining A
@@ -191,19 +186,23 @@ x_true <- solve(A,b)
 # Printing results
 cat("\n\n True Solution:\n", x_true, "\n\n")
 cat("Results from each method:\n")
-cat("Newton's Method:\n", newton, "\n\n")
-cat("Gradient Descent:\n", descent, "\n\n")
-cat("BFGS via optim:\n", bfgs, "\n\n")
+cat("Newton's Method:\n", newton$x, "\n\n")
+cat("Gradient Descent:\n", descent$x, "\n\n")
+cat("BFGS via optim:\n", bfgs$x, "\n\n")
+
+# Creating plots to show convergence
+plot(descent$convergence_values, xlab="Iteration", ylab="Objective Function", main="Gradient Descent Convergence")
+plot(newton$convergence_values, xlab="Iteration", ylab="Objective function value", main="Newton's Method Convergence")
+plot(bfgs$convergence_values, xlab="Iteration", ylab="Objective function value", main="BFGS Method Convergence")
 
 # Printing time taken for results
 cat("Time spent on convergence from each method:\n")
 cat("Newton's Method:\n", time_newton[1:3], "\n\n")
 cat("Gradient Descent:\n", time_descent[1:3], "\n\n")
 cat("BFGS via optim:\n", time_bfgs[1:3], "\n\n")
+
 ```
-As can be seen by these results, the Gradient Descent and BFGS (Quasi-Newton) methods both obtained the true value of the function, however, the BFGS method was even faster than the Gradient Descent. Although the time calculation of the methods were affected by the storing of values for the plotting of convergence, this adjustment was done to all of them, so the impact should be roughly equivalent for the affected time increase. Additionally, it can be seen that the BFGS method took only about 5 iterations to find the result, which is an exceedingly faster convergence rate than the Gradient Descent method which took 965 iterations. Although the time difference is small here, in higher dimensions this could make the difference between minutes and hours. Additionally, I also have to mention Newton's Method, which we see that it was not even able to find an optimum within 1000 iterations. Despite its ability to converge quadratically in optimal conditions, in this case we see a definitely linear and extremely slow convergence, as seen by the extremely minimal decrease in the objective function value between the start and finish of the iterations. These results reinforce why Quasi-Newton methods are so highly adored, as they are relatively low-hassle to set up while also having great convergence, even as the number of dimensions increases, which we shall explore in the next part.
-
-
+As can be seen by these results, the Gradient Descent and BFGS (Quasi-Newton) methods both obtained the true value of the function, however, the BFGS method was even faster than the Gradient Descent. Additionally, it can be seen that the BFGS method took only about 5 iterations to find the result, which is an exceedingly faster convergence rate than the Gradient Descent method which took 965 iterations. Although the time difference is small here, in higher dimensions this could make the difference between minutes and hours. Additionally, I also have to mention Newton's Method, which we see that it was not even able to find an optimum within 1000 iterations. Despite its ability to converge quadratically in optimal conditions, in this case we see a definitely linear and extremely slow convergence, as seen by the extremely minimal decrease in the objective function value between the start and finish of the iterations. These results reinforce why Quasi-Newton methods are so highly adored, as they are relatively low-hassle to set up while also having great convergence, even as the number of dimensions increases, which we shall explore in the next part.
 
 
 ## Implementing the BFGS algorithm and applying it to a high-dimensional logistic regression problem.
@@ -213,7 +212,7 @@ $$
 l(\beta) = \sum^n_{i=1}[y_i log(p_i)+(1-y_i)log(1-p_i)]
 $$
 
-<!-- Perhaps change dataset to a higher dimensional one -->
+<!-- sample the data so that prediction ability can be made -->
 
 ```{r}
 wine_data <- fread("winequality-white.csv")
@@ -232,6 +231,9 @@ log_likelihood_gradient <- function(beta, X, y){
 # Setting the seed for reproducibility
 set.seed(123)
 
+# generating random sample of indices for sampling so that optimized method can be tested
+sample_indices <- sample.int(nrow(wine_data), size=2000)
+
 # Creating binary response variable for a binary logistic regression where quality >= 6: 1, else: 0
 response <- ifelse(wine_data$quality>=6,1,0)
 
@@ -244,6 +246,10 @@ predictors <- scale(predictors)
 # Creating design matrix with an intercept using the predictors
 X <- cbind(1, predictors)
 variables <- c("Intercept", colnames(X)[-1])
+
+# Taking sample from response and predictors
+response_sample <- response[sample_indices]
+predictor_sample <- X[sample_indices,]
 
 # Creating initial guess for the regression coefficients
 beta_init <- rep(0, ncol(X))
@@ -260,13 +266,13 @@ BFGS_logistic <- function(X, y, beta_init, log_likelihood, log_likelihood_gradie
   }
   result <- optim(par=beta_init, fn=likelihood_wrapper,gr=log_likelihood_gradient, X=X,y=y, method="BFGS")
   convergence_values <- unlist(convergence_values)
-  plot(convergence_values, xlab="Iteration", ylab="Log-Likelihood Value", main="Convergence of optim")
-  return(result$par)
+  return(list(results = result$par, convergence_values=convergence_values))
   
 }
 
 # Running BFGS for high-dimension dataset
-result <- BFGS_logistic(X,response,beta_init,log_likelihood,log_likelihood_gradient)
+results <- BFGS_logistic(predictor_sample,response_sample,beta_init,log_likelihood,log_likelihood_gradient)
+result <- results$results
 time <- system.time(BFGS_logistic(X,response,beta_init,log_likelihood,log_likelihood_gradient))
 
 # Printing the results
@@ -275,16 +281,19 @@ for(i in 1:ncol(X)){
   cat(variables[i],":", round(result[i],3), "\n")
 }
 
-cat("\n\n The time used for the BFGS logistic regression plus graphing is: \n")
-time
+#Plotting the convergence rate
+plot(results$convergence_values, xlab="Iteration", ylab="Log-Likelihood Value", main="Convergence of BFGS optim")
 
+cat("\n\n The time used for the BFGS logistic regression is: \n")
+time
 
 
 
 ```
 
-<!-- add some specific review and analysis once satisfied with size of dataset -->
 
+<!-- add some specific review and analysis once satisfied with size of dataset -->
+It took less than a second for the BFGS method to find the optimal regression coefficients for an 11 variable logistic regression. This speed is very useful because if the dataset were to be even larger, the time d
 
 
 ## References
