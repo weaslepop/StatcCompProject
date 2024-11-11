@@ -9,13 +9,14 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-```{r, echo=false}
+```{r, echo=FALSE}
 library(data.table)
 library(ggplot2)
 ```
 
 ## Explaining Theory Behind Quasi-Newton Methods 
-<!-- Focus on BFGS updates -->
+
+
 ### Introducing Quasi-Newton Methods
   Quasi-Newton methods are similar to steepest descent in that they only require the gradient of the objective function to be supplied at each iteration. By measuring the changes in gradients, they construct a model of the objective function that is good enough to produce superlinear convergence.
 
@@ -39,7 +40,7 @@ $$
 
 
 ## Comparing Convergence Rates of Quasi-Newton with Gradient Descent and Newton's Method
-<!-- Use the math explanations to compare the convergence rates. maybe use code too if it doesn't seem too cumbersome -->
+
 
   The Quasi-Newton methods provide a fantastic middle ground between Newton's Method and Gradient Ascent and Descent methods in terms of convergence and computation. Newton's Method provides a faster convergence rate than Quasi-Newton methods as it has quadratic convergence near the optimum, however, calculating the Hessian can be very expensive depending on the model and it does not guarantee ascent either. As such, the Quasi-Newton methods are much easier to implement than Newton's Method, and they do not lose out too much in terms of convergence due to the super-linear convergence.
   On the other end of the convergence algorithms, there is the Gradient Ascent and Descent methods. These methods are fairly simple, as they only require knowledge of the gradient, like Quasi-Newton. But these methods are even slower than Quasi-Newton, requiring small step sizes that can greatly slow down convergence unless there is already a very good guess of the optimum. These differences can be seen in the following example, comparing an optimization problem using all three methods.
@@ -48,7 +49,7 @@ $$
 
 In this case, we will use a quadratic function and will use the methods to find the minimum. This quadratic function is of the form $f(x) = \frac{1}{2}x^TAx - b^Tx$, where $A$ is a symmetric matrix and $b$ is a vector. Moreover, because $A$ is nearly singular in this case, Newton's Method requires a special way of approximating the Hessian, further exemplifying its quality of not being that simple.
 
-<!-- add graphing ability to measure rate of convergence -->
+
 ```{r}
 # Setting the seed for reproducibility
 set.seed(123)
@@ -206,13 +207,14 @@ As can be seen by these results, the Gradient Descent and BFGS (Quasi-Newton) me
 
 
 ## Implementing the BFGS algorithm and applying it to a high-dimensional logistic regression problem.
+
 In this case, I will again use optim to implement BFGS, but this time it will be for a logistic regression problem that is high-dimensional. I have chosen the wine quality data from Homework 2, only this time I will use the 11 other variables to predict wine quality rather than just 4.
 The log-likelihood for logistic regression is given by:
 $$
 l(\beta) = \sum^n_{i=1}[y_i log(p_i)+(1-y_i)log(1-p_i)]
 $$
 
-<!-- sample the data so that prediction ability can be made -->
+The BFGS implementation here will work by minimizing the negative log-likelihood such that the best fitting coefficients of the parameters can be found. The wine data will be split into two parts so that the logistic regression can be trained on one part while its predictive ability can be measured using the other part.
 
 ```{r}
 wine_data <- fread("winequality-white.csv")
@@ -264,7 +266,7 @@ BFGS_logistic <- function(X, y, beta_init, log_likelihood, log_likelihood_gradie
     convergence_values <<- c(convergence_values, value)
     return(value)
   }
-  result <- optim(par=beta_init, fn=likelihood_wrapper,gr=log_likelihood_gradient, X=X,y=y, method="BFGS")
+  result <- optim(par=beta_init, fn=likelihood_wrapper,gr=log_likelihood_gradient, X=X,y=y, method="BFGS", control=list(fnscale=-1))
   convergence_values <- unlist(convergence_values)
   return(list(results = result$par, convergence_values=convergence_values))
   
@@ -286,14 +288,36 @@ plot(results$convergence_values, xlab="Iteration", ylab="Log-Likelihood Value", 
 
 cat("\n\n The time used for the BFGS logistic regression is: \n")
 time
+```
+In under a second and with around just 60 iterations, the BFGS algorithm managed to minimize the absolute value of the Log-Likelihood function. Now, we will show how this implementation of the logistic regression optimization compares to the built-in glm logistic regression implementation.
+
+```{r}
+# Calculating MSE of the optimized linear regression using the rest of the data
+responses <- response[-sample_indices]
+test_predictors <- X[-sample_indices,]
+predictions <- test_predictors %*% result
+
+# Running the same logistic regression using glm in order to compare to the BFGS implementation
+model <- glm(formula= response_sample ~., data=as.data.frame(predictor_sample[,-1]), family=binomial(link="logit"))
+time_glm <- system.time(glm(formula= response_sample ~., data=as.data.frame(predictor_sample[,-1]), family=binomial(link="logit")))
+
+# Using the glm model to make predictions for MSE calculation
+model_predictions <- predict(model, newdata=as.data.frame(test_predictors[,-1]))
 
 
+cat("The time used for the glm logistic regression is: \n")
+time_glm
 
+cat("\n\n The estimated logistic regression model using glm is:\n\n")
+summary(model)
+
+
+# Calculating MSE of the two models
+BFGS_MSE <- mean((responses - predictions)^2)
+glm_MSE <- mean((responses-model_predictions)^2)
+
+cat("\n\nThe MSE of the BFGS logistic regression is:", BFGS_MSE,"\n")
+cat("The MSE of the glm logistic regression is:", glm_MSE, "\n")
 ```
 
-
-<!-- add some specific review and analysis once satisfied with size of dataset -->
-It took less than a second for the BFGS method to find the optimal regression coefficients for an 11 variable logistic regression. This speed is very useful because if the dataset were to be even larger, the time d
-
-
-## References
+As can be seen, the two methods produced extremely similar results here, with the regression coefficients and the calculated MSEs being different only by small decimal values. Moreover, in this case, even the time for computation was fairly similar. This speaks to the level of accuracy of the BFGS optimization, as even though it did not directly calculate the logistic regression equation like the glm method did, the BFGS implementation still obtained almost exactly the best possible answer. Moreover, the fact that it was able to do so in just roughly 60 short iterations is important because this implies that given a much larger dataset in variables and/or observations, the BFGS method can still perform well and calculate a strong approximation of the regression model while the glm method may struggle as the calculations become increasingly complex. This becomes relevant especially in situations where models need to be calculated multiple times in a row, such as in a bootstrapping procedure. In this case, using BFGS to more quickly define a regression model can allow for bootstrap calculations of MSE for example. However, despite the strength and speed of Quasi-Newton methods, and especially of BFGS, they are not all-powerful. They require knowledge of the relevant objective function and its gradient for any implementation of an optimization problem. In situations where that is already known, then these methods are greatly useful with little downsides. But if these functions are not known, such as in the case of trial and error for determining a suitable regression model, then these methods can possibly be more work than they're worth, as they will require more extensive derivations and formulations to setup than other built-in and primitive functions. Nevertheless, these downsides are outweighed by their powerful and accessible convergence, such that Quasi-Newton methods are a powerful tool for practically any optimization problem.
