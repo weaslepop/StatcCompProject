@@ -1,0 +1,37 @@
+# Theory behind Ridge Regression
+# Ridge regression is a technique developed in the late 1960s by Arthur E. Hoerl and Robert W. Kennard
+# The goal of ridge regression is to account for overfitting issues that arise with traditional regression techniques
+# Ridge regression works by adding a penalty term to a regression, training some bias for a greatly reduced variance
+# Ridge minimizes the squared magnitude of the regression coefficients, and will never set any coefficient to 0
+#Below is an implementation of a ridge regression using the glmnet library
+
+# Load necessary libraries
+library(glmnet)
+
+# Separate predictors and response
+predictors <- as.matrix(Wine_Quality_1[, -ncol(Wine_Quality_1)])  
+response <- Wine_Quality_1$quality
+
+# Perform Ridge Regression (alpha = 0 for Ridge)
+ridge_model <- glmnet(predictors, response, alpha = 0)
+
+#plot coefficient results
+plot(ridge_model)
+
+# Cross-validation to select the best lambda
+cv_ridge <- cv.glmnet(predictors, response, alpha = 0)
+best_lambda <- cv_ridge$lambda.min
+
+# Coefficients for the best model
+ridge_coefficients <- coef(cv_ridge, s = "lambda.min")
+
+# Print the best lambda and coefficients
+print(paste("Best Lambda:", best_lambda))
+print(ridge_coefficients)
+
+# As shown by the results, the ridge regression is able to calculate both a best lambda through cross-validation and new coefficients for the regressors
+# This technique is able to handle the increased number of regresors in the dataset, as when we initially worked on it in a previous assignment
+# The regression uses the lambda term to asses how to control the bias-variance tradeoff
+# Another key point is that the intercept is not included in the penalty term (lambda). This is to eusure that the procedure does not depend on the origin
+# Use cases for this type of regression include climate modeling, stock price forecasting, and genetic predictions
+# Ridge generally performs well in situations with many predictors and high collinearity. It is also less computationally expensive than lasso
