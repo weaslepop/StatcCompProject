@@ -1,7 +1,7 @@
 ---
-title: "Stat Comp Project Topic 1 Problem 2"
-author: "Alexander Popolow"
-date: "2024-11-22"
+title: "Statistical Computation Project Topic 1"
+author: "Alexander Popolow, Griffin Lovato, Demi Zhuang, Aidan Kardan, Thomas Ladocsi"
+date: "2024-12-06"
 output: html_document
 ---
 
@@ -14,7 +14,7 @@ library(data.table)
 library(ggplot2)
 ```
 
-## Explaining Theory Behind Quasi-Newton Methods 
+## Problem 1: Explaining Theory Behind Quasi-Newton Methods 
 
 
 ### Introducing Quasi-Newton Methods
