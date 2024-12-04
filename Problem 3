@@ -1,0 +1,150 @@
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(ggplot2)
+library(data.table)
+library(caret)
+```
+
+# Problem 4: The Curse of Dimensionality in Optimization
+
+## Objective: Understand how the curse of dimensionality affects optimization in high-dimensional spaces and explore strategies to mitigate its effects.
+
+### Explain Curse of Dimensionality
+Curse of dimensionality refers to the various challenges and problems that arise when working in higher dimensions (more variables). As the number of dimensions increases, the volume of the space grows exponentially and the data points within the space become more sparse, resulting in "blind spots" in data. Increased sparsity exponentially increases the "blind spots", making it difficult to find meaningful relationships. Oftentimes machine learning algorithms are affected by the curse of dimensionality as some of it (i.e. the k-th nearest neighbor algorithm) rely on using the distances between points to classify or predict new points. In higher dimensions, the distances between different pairs of points could be similar, resulting in low accuracy and poor performance of the model.
+
+
+### Implications for optimization
+Curse of dimensionality has huge implications in optimization and model development since it often explains the poor generalization performance of a model on complex data sets with many variables.
+
+A real-world application where curse of dimensionality may affect the model performance and result in catastrophic failures is in the field of digital medicine. Many types of data and parameters that capture one's health state can be stored as a digital health data, so the dimension of these data sets are enormous and will continuously grow. Although cross validation can be used to develop a model and avoid overfitting, a large training data set is required, especially for higher dimensions when multiple variables are included in the study, which may be difficult in a clinical setting. Models for higher dimensions also tend to learn overly the complex relationships within the training data and fail to generalize to unseen new data. This has dangerous implications as the developers may not be able to fully evaluate the model's true performance and inaccurate treatment recommendations may be given.
+
+When the data has high intrinsic dimensionality, curse of dimensionality imposes more challenges to the bias-variance dilemma. The bias-variance dilemma describes the trade off between the two types of model error (bias and variance), where decreasing one will increase the other. This makes it difficult to find the balance that minimize the total error, and more difficult for higher dimension problems. Classical non-parametric local learning algorithms and kernel estimators are examples that suffer from the curse of dimensionality.
+
+According to (Härdle et al., 2004), the expected error of a model can be written as follow:
+$$error = \frac{C_1}{n\sigma^d} + C_2\sigma^4$$
+If $n_1$ is the number of samples required to get a certain level of error, then $n_1^{(4+d)/5}$ samples are required to get the same level of error in $d$ dimensions, meaning the number of samples increases exponentially with dimensions to keep the error constant. The complexity of an estimator converging to the target function also increases dramatically as dimension increases.
+
+### Solutions: PCA & Random Search
+Principal component analysis (PCA) is a dimensionality-reduction technique that identifies the most important direction (principal components) in the data set where data varies the most and only uses these covariates to predict the response variable to reduce dimensionality. To perform PCA, we proceed with the following steps: standardize the data, compute the covariance matrix, calculate the eigenvalues and eigenvectors of the covariance matrix, select the top k eigenvectors corresponding to the largest eigenvalues, and project the original data onto the new k-dimensional space. The process is complicated but fortunately there is a built-in R function `prcomp()` that helps us perform PCA.
+
+Random search is a hyperparameter optimization technique that involves randomly selecting hyperparameter values form a predefined range and finding the best-performing set. Hyperparameters are parameters that have a set value before training a machine learning model. Some examples include learning rate, step size in gradient descent, and regularization parameters. The process of random search is the following: we scale numerical variables and standardize the range, then we randomly select hyperparameters and fit to a certain model. We then evaluate the model's performance through metrics such as R-squared or RMSE to determine the best-performing set of hyperparameters.
+
+
+### Dimensionality Reduction Method Implementation
+I implement the two methods on all 11 variables in the `wine-quality` data set from a previous assignment. Specifically, the `quality` covariate is used as the target or response variable when fitting a linear regression model onto the data set.
+
+### PCA
+```{r}
+# load the data set
+data <- fread("winequality-white.csv"); data <- as.data.frame(data)
+
+# Separate features and target
+data_numeric <- subset(data, select = -quality)
+target <- data$quality
+
+# Standardize features
+data_scaled <- scale(data_numeric); data_scaled <- as.data.frame(data_scaled)
+
+# Perform PCA
+pca_result <- prcomp(data_scaled, center = TRUE, scale. = TRUE)
+summary(pca_result)
+
+# Determine the number of components to explain 95% variance
+explained_variance <- cumsum(pca_result$sdev^2 / sum(pca_result$sdev^2))
+num_components <- which(explained_variance >= 0.95)[1]
+cat("Number of components needed to retain 95% variance:", num_components, "\n")
+
+# Transform data into the reduced dimensions and add target variable back
+data_pca <- as.data.frame(pca_result$x[, 1:num_components])
+data_pca$target <- target
+
+# Plot before dimensionality reduction
+original_data <- as.data.frame(data_scaled)
+original_data$target <- target
+ggplot(original_data, aes(x = "fixed acidity" , y = "volatile acidity", 
+                          color = as.factor(target))) +
+  geom_point(alpha = 0.7) +
+  labs(title = "Original Data: First Two Features", 
+       x = "fixed acidity", y = "volatile acidity", color = "Quality") +
+  theme_minimal()
+
+# Plot PCA-transformed data using the first two principal components
+ggplot(data_pca, aes(x = PC1, y = PC2, color = as.factor(target))) +
+  geom_point(alpha = 0.7) +
+  labs(title = "PCA-Transformed Data: First Two Principal Components", 
+       x = "Principal Component 1", y = "Principal Component 2", color = "Quality") +
+  theme_minimal()
+```
+
+From the plot before dimensionality reduction, we can observe that all the data points are concentrated in the center. This indicates that the two features, `volatile acidity` and `fixed acidity`, alone are not sufficient to explain the variations in the response variable, which is `wine quality`. When implementing PCA as a dimensionality reduction technique, we observe that only 9 out of the 11 variables are required to explain 95% variance in the response. This way, we successfully reduces the dimensionality of the data set by identifying the principal components. In the plot after dimensionality reduction, more data points appear when the first two principal components were plotted, suggesting that more variations could be explained by the two features, `volatile acidity` and `fixed acidity`, after dimensionality reduction.
+
+### Random Search
+```{r}
+library(glmnet)
+library(ggplot2)
+
+# Load and prepare the data
+wine <- fread("winequality-white.csv"); wine <- as.data.frame(wine)
+X <- as.matrix(wine[, -ncol(wine)])
+y <- wine$quality
+X_scaled <- scale(X) # standardize
+
+# Split data into training and test sets
+set.seed(42)
+train_index <- sample(1:nrow(X_scaled), 0.8 * nrow(X_scaled))
+X_train <- X_scaled[train_index, ]
+y_train <- y[train_index]
+X_test <- X_scaled[-train_index, ]
+y_test <- y[-train_index]
+
+# Baseline model (with default lambda)
+baseline_model <- glmnet(X_train, y_train, alpha = 0)
+baseline_predictions <- predict(baseline_model, s = 0.01, newx = X_test)
+baseline_predictions <- as.vector(baseline_predictions)
+baseline_rmse <- sqrt(mean((y_test - baseline_predictions)^2))
+
+# Plot observed vs predicted for baseline model
+df_baseline <- data.frame(Observed = y_test, Predicted = baseline_predictions)
+plot_baseline <- ggplot(data = df_baseline, aes(x = Observed, y = Predicted)) +
+  geom_point(color = "blue") +
+  geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "red") +
+  labs(title = "Observed vs Predicted (Baseline)", 
+       x = "Observed Quality", y = "Predicted Quality") +
+  theme_minimal()
+
+# Random Search
+set.seed(123)
+num_random_search <- 10
+random_lambdas <- runif(num_random_search, min = 0.001, max = 10)
+results <- data.frame(Lambda = numeric(), RMSE = numeric())
+
+for (lambda in random_lambdas) {
+  model <- glmnet(X_train, y_train, alpha = 0, lambda = lambda)
+  predictions <- predict(model, newx = X_test) # prediction on testing data set
+  rmse <- sqrt(mean((y_test - predictions)^2))
+  results <- rbind(results, data.frame(Lambda = lambda, RMSE = rmse))
+}
+
+# Best Lambda
+best_lambda <- results[which.min(results$RMSE), "Lambda"] # find minimum RMSE
+best_model <- glmnet(X_train, y_train, alpha = 0, lambda = best_lambda)
+best_predictions <- predict(best_model, newx = X_test)
+best_predictions <- as.vector(best_predictions)
+
+# Plot observed vs predicted for the model after random search
+df_random <- data.frame(Observed = y_test, Predicted = best_predictions)
+plot_after <- ggplot(df_random, aes(x = Observed, y = Predicted)) +
+  geom_point(color = "green") +
+  geom_abline(slope = 1, intercept = 0, linetype = "dashed", color = "red") +
+  labs(title = "Observed vs Predicted (After Random Search)", 
+       x = "Observed Quality", y = "Predicted Quality") +
+  theme_minimal()
+
+# Display both plots
+print(plot_baseline)
+print(plot_after)
+```
+
+For this data set, I chose $lambda$ that measures the regularization strength in Ridge regression models as my hyperparameter to optimize and perform random search on. I separated the data set into training and testing parts, randomly choose a $lambda$ value, fit a Ridge regression model on the training set, and assessed the model's performance by analyzing its predictions on the testing set. I repeated this process multiple times and identified the $lambda$ value that resulted in the best model performance, which has the lowest RMSE value.
+
+The two plots before and after random search look similar, potentially because the `wine-quality` data set only includes 11 variables and isn't as complex or high dimensional as others. It may also be due to the fact that a Ridge regression model doesn't fit the data set well. However, there are still some differences between the two plots. For example, data points are more clustered after performing random search, indicating smaller variances and better performance of the model.
