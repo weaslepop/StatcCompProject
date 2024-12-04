@@ -14,10 +14,10 @@ library(data.table)
 library(ggplot2)
 ```
 
-## Problem 1: Explaining Theory Behind Quasi-Newton Methods 
+# Problem 1: Explaining Theory Behind Quasi-Newton Methods 
 
 
-### Introducing Quasi-Newton Methods
+## Introducing Quasi-Newton Methods
   Quasi-Newton methods are similar to steepest descent in that they only require the gradient of the objective function to be supplied at each iteration. By measuring the changes in gradients, they construct a model of the objective function that is good enough to produce superlinear convergence.
 
 
