@@ -1,4 +1,4 @@
-### Theory behind Ridge Regression
+## Theory behind Ridge Regression
 Ridge regression is a technique developed in the late 1960s by Arthur E. Hoerl and Robert W. Kennard. The goal of ridge regression is to account for overfitting issues that arise with traditional regression techniques. Ridge regression works by adding a penalty term to a regression, training some bias for a greatly reduced variance. Ridge minimizes the squared magnitude of the regression coefficients, and will never set any coefficient to 0. Below is an implementation of a ridge regression using the glmnet library.
 
 ```{r, echo=FALSE}
