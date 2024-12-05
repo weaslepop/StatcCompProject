@@ -959,6 +959,7 @@ By penalizing the absolute values of coefficients, Lasso encourages sparsity, dr
 Why Use Lasso?
 
 Lasso is widely used in scenarios where feature selection is critical, such as high-dimensional datasets where many predictors are irrelevant or redundant. It is particularly effective in addressing multicollinearity, as it selects one variable from a group of correlated variables and discards the others. Moreover, Lasso enhances model performance by balancing bias and variance, making it a powerful method for building interpretable and robust models.
+
 ## Lasso Analysis 
 
 
