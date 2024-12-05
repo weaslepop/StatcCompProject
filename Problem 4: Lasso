@@ -1,0 +1,87 @@
+# Problem 4: Regularization Techniques for High-Dimensional Optimization
+
+## Lasso Analysis 
+
+
+### Load and Clean Data 
+
+We need to consider that the response is a discrete variable, taking integer values. Therefore, we need to adjust Lasso for a classification problem, since we are dealing with more than 2 classes, instead of logistic regression, we need to consider multinomial regression. 
+
+```{r}
+library(data.table)
+library(glmnet)
+
+# Load the dataset
+data <- fread('/Users/aidanashrafi/Downloads/winequality-white.csv')
+
+# Separate predictors and response
+predictors <- as.matrix(data[, !'quality', with = FALSE])  # Exclude 'quality' and convert to matrix
+response <- as.factor(data$quality)  # Convert response to a factor for classification
+
+# Lasso regression with multinomial family
+lasso_model <- cv.glmnet(predictors, response, alpha = 1, family = "multinomial")
+
+# Plot the cross-validation curve
+plot(lasso_model)
+```
+
+This plot helps in selecting the optimal regularization strength for the model, balancing bias and variance.
+
+
+The left dashed line suggests the lambda where deviance is minimized, while the right dashed line provides a more regularized, simpler model that is robust to overfitting. 
+
+Now we will find the optimal lambda. 
+
+```{r}
+# Get the best lambda
+best_lambda <- lasso_model$lambda.min
+print(paste("Optimal lambda:", best_lambda))
+```
+
+
+The next step is to fit the final Lasso model 
+
+```{r}
+# Fit the final Lasso model
+final_model <- glmnet(predictors, response, alpha = 1, family = "multinomial", lambda = best_lambda)
+
+# Coefficients of the final model
+coef(final_model)
+```
+
+
+There are 7 different categorical values that the response can take, so we see 7 sets of outputs for the coefficients in the model. 
+
+
+Combined Code: 
+
+```{r}
+library(data.table)
+library(glmnet)
+
+# Load the dataset
+data <- fread('/Users/aidanashrafi/Downloads/winequality-white.csv')
+
+# Separate predictors and response
+predictors <- as.matrix(data[, !'quality', with = FALSE])  # Exclude 'quality' and convert to matrix
+response <- as.factor(data$quality)  # Convert 'quality' to a factor for classification
+
+# Fit Lasso regression with multinomial family
+lasso_model <- cv.glmnet(predictors, response, alpha = 1, family = "multinomial")
+
+# Plot cross-validation results
+plot(lasso_model)
+
+# Get the best lambda
+best_lambda <- lasso_model$lambda.min
+print(paste("Optimal lambda:", best_lambda))
+
+# Fit the final model using the best lambda
+final_model <- glmnet(predictors, response, alpha = 1, family = "multinomial", lambda = best_lambda)
+
+# Display the coefficients for each class
+coefficients <- coef(final_model)
+print(coefficients)
+
+
+```
