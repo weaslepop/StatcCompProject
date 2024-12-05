@@ -950,7 +950,15 @@ For this data set, I chose $lambda$ that measures the regularization strength in
 The two plots before and after random search look similar, potentially because the `wine-quality` data set only includes 11 variables and isn't as complex or high dimensional as others. It may also be due to the fact that a Ridge regression model doesn't fit the data set well. However, there are still some differences between the two plots. For example, data points are more clustered after performing random search, indicating smaller variances and better performance of the model.
 
 # Problem 4: Regularization Techniques for High-Dimensional Optimization
+## Theory Behind Lasso 
 
+Lasso (Least Absolute Shrinkage and Selection Operator) is a linear regression method that adds a penalty to the loss function to constrain the magnitude of the regression coefficients. 
+
+By penalizing the absolute values of coefficients, Lasso encourages sparsity, driving some coefficients to zero. This makes it an effective tool for both feature selection and regularization, improving model simplicity and interpretability. Lasso helps reduce overfitting by shrinking large coefficients, especially when predictors are highly correlated or the number of predictors exceeds the number of observations.
+
+Why Use Lasso?
+
+Lasso is widely used in scenarios where feature selection is critical, such as high-dimensional datasets where many predictors are irrelevant or redundant. It is particularly effective in addressing multicollinearity, as it selects one variable from a group of correlated variables and discards the others. Moreover, Lasso enhances model performance by balancing bias and variance, making it a powerful method for building interpretable and robust models.
 ## Lasso Analysis 
 
 
@@ -1001,7 +1009,8 @@ coef(final_model)
 ```
 
 
-There are 7 different categorical values that the response can take, so we see 7 sets of outputs for the coefficients in the model. 
+There are 7 different categorical values that the response can take, so we see 7 sets of outputs for the coefficients in the model. As expected, lasso performs feature selection by eliminating predictors that are redundant or irrelevant. 
+
 
 
 ## Theory behind Ridge Regression
