@@ -1008,39 +1008,6 @@ coef(final_model)
 There are 7 different categorical values that the response can take, so we see 7 sets of outputs for the coefficients in the model. 
 
 
-Combined Code: 
-
-```{r}
-library(data.table)
-library(glmnet)
-
-# Load the dataset
-data <- fread("winequality-white.csv")
-
-# Separate predictors and response
-predictors <- as.matrix(data[, !'quality', with = FALSE])  # Exclude 'quality' and convert to matrix
-response <- as.factor(data$quality)  # Convert 'quality' to a factor for classification
-
-# Fit Lasso regression with multinomial family
-lasso_model <- cv.glmnet(predictors, response, alpha = 1, family = "multinomial")
-
-# Plot cross-validation results
-plot(lasso_model)
-
-# Get the best lambda
-best_lambda <- lasso_model$lambda.min
-print(paste("Optimal lambda:", best_lambda))
-
-# Fit the final model using the best lambda
-final_model <- glmnet(predictors, response, alpha = 1, family = "multinomial", lambda = best_lambda)
-
-# Display the coefficients for each class
-coefficients <- coef(final_model)
-print(coefficients)
-
-
-```
-
 ## Theory behind Ridge Regression
 Ridge regression is a technique developed in the late 1960s by Arthur E. Hoerl and Robert W. Kennard. The goal of ridge regression is to account for overfitting issues that arise with traditional regression techniques. Ridge regression works by adding a penalty term to a regression, training some bias for a greatly reduced variance. Ridge minimizes the squared magnitude of the regression coefficients, and will never set any coefficient to 0. Below is an implementation of a ridge regression using the glmnet library.
 
