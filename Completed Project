@@ -1055,8 +1055,8 @@ library(glmnet)
 
 ```{r}
 # Separate predictors and response
-wine_Quality_1 <- fread("winequality-white.csv")
-predictors <- as.matrix(Wine_Quality_1[, -ncol(Wine_Quality_1)])  
+Wine_Quality_1 <- fread("winequality-white.csv")
+predictors <- as.matrix(Wine_Quality_1[, -12])  
 response <- Wine_Quality_1$quality
 
 # Perform Ridge Regression (alpha = 0 for Ridge)
