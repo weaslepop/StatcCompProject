@@ -1,0 +1,482 @@
+# Problem 3: Harnessing Stochasic Gradient Descent for Optimization
+
+## Objective: Explore how Stochastic Gradient Descent (SGD) helps overcome the computational cost of gradient evaluation in high dimensions.
+
+Article: Ruder, S. (2016). ”An Overview of Gradient Descent Optimization Algorithms."
+Link: https://arxiv.org/pdf/1609.04747
+
+
+### Explain the differences between SGD and standard Gradient Descent
+All gradient descent algorithms are methods of minimizing an objective function, in this case negative log-likelihood, parameterized by theta, in this case beta, the vector of our coefficients. It does this by updating theta in the opposite direction of the gradient of the objective function at the current position of theta, using η as the learning rate to determine the size of each step, effectively going "down" the slope of the objective function with the intent of reaching the absolute minimum, although some algorithms can get "caught" on a local minimum.
+
+Standard, or batch Gradient Descent, computes the gradient with respect to the starting parameter theta for the entire dataset in one single move for each epoch:
+
+θ = θ − η · ∇θ J(θ) 
+
+Although fast for small datasets, since this method requires the entire dataset to be in memory all at once, the method is impossible for some computers if the dataset does not fit into memory all at once. It is guaranteed to at least converge to a local minimum, depending on the objective function.
+
+In contrast, Stochastic Gradient Descent, or SGD, performs one update at a time, on each pair of training example x(i) and label y(i), doing this for the entire dataset each epoch:
+
+θ = θ − η · ∇θ J(θ; x(i); y(i)) 
+
+SGD, given an appropriate learning rate hyperparameter, is guaranteed to converge to the absolute minimum of a dataset, as its frequent updates cause the objective function to fluctuate, allowing SGD to overcome local minima to continue to move towards the absolute minimum. One shortcoming of SGD is that, if the learning rate is to small, it may take a very long time to converge, and if it is too large, then it may oscillate around the absolute minimum without ever reaching it.
+
+### Review momentum-based methods and adaptive learning rages (e.g., Adam, RMSProp)
+The Momentum method expands upon SGD by keeping the core concept but adding a velocity fraction γ that keeps track of the update vector from the previous update, adding it to the current update:
+
+vt = γvt−1 + η∇θ J(θ)
+θ = θ − vt
+
+This allows Momentum to overcome local minimum quicker, often leading to faster convergence and reduced oscillation once we get to the convergence points, as subesequent updates going in "opposite directions" will counteract each other.
+
+
+Nesterov Accelerated Gradient, or NAG (not implemented), effectively looks at updates ahead as well as behind, accounting for the expected future value of theta via an estimate θ−γ vt−1: 
+
+vt = γ vt−1 + η∇θ J(θ − γvt−1)
+θ = θ − vt
+
+This allows the "velocity" of the updates to slow down preemtively, further reducing the effects of oscillations.
+
+
+Adagrad (not implemented) is a method for dealing with sparse data, and performs larger updates for infrequent (important) parameters. It does this by dividing the learning rate η by sqrt(Gt,ii + epsilon), where G is a diagonal matrix where each element i, i is the sum of squares of the gradients with respect to theta up to epoch t, while epsilon is a tiny term to avoid division by 0:
+
+θt+1,i = θt,i − η/(√Gt,ii + epsilon)· gt,i
+
+gt,i here is the gradient of the objective function with respect to parameter θi at epoch t. The problem with this is that as t grows, the denominator under the learning rate grows as well, never decreasing (the squares of the gradients can never be negative). This eventually causes our learning rate to vanish with enough iterations.
+
+
+To fix this problem of Adagrad, we can utilize Root Mean Square Propagation (RMSProp) and Adaptive Moment Estimation (Adam). RMSProp instead divides the learning rate by an exponentially decaying average of squared gradients:
+
+[g2]t = 0.9E[g^2]t−1 + 0.1gt^2
+θt+1 = θt − η/(√E[g2]t + epsilon) gt
+
+Adam stores both an exponentially decaying average of past squared gradients vt like RMSProp, as well as an exponentially decaying average of past gradients mt like momentum. Adam's decay rates are hyperparameters β1 and β2). Because of this, Adam receives the benefits of both past methods. Note that Adam must correct for the bias towards 0 of both vt and mt by calculating the bias-corrected first and second moment estimates:
+
+mt = β1mt−1 + (1 − β1)gt
+vt = β2vt−1 + (1 − β2)gt^2
+
+mt-hat = mt/(1 − β1^t)
+vt-hat = vt/(1 − β2^t)
+
+θt+1 = θt − η/√(vt-hat + epsilon) mt-hat
+
+### Implement SGD and Adam in R, apply them to a high-dimensional optimization problem, and compare the results
+Note that, as stated in the presentation, we are maximizing the log-likelihood function by altering beta, the vector of our coefficients. This is equivalent to minimizing the negative log-likelihood, thus this is still Gradient DESCENT, despite the addition you see here.
+
+Note that our hyperparameters:
+```{r}
+learning_rate <- 0.0025
+max_iter <- 1000
+tol <- 1e-6
+```
+are the same for every function. This is to provide a level playing field in direct comparison of the 5 methods, and not a model to follow for actual implementation for a real-world problem. Momentum, RMSProp, and Adam would all benefit substantially from better-chosen hyperparameters, likely consistenly outperforming regular SGD. Note that function-specific hyperparameters, such as β1 and β2 for Adam, use their recommended default values stated in Ruder's article.
+
+Data Prep:
+```{r}
+library(data.table)
+wine_data <- fread("winequality-white.csv")
+
+# Setting the seed for reproducibility
+set.seed(123)
+
+# generating random sample of indices for sampling so that optimized method can be tested
+sample_indices <- sample.int(nrow(wine_data), size=2000)
+
+# Creating binary response variable for a binary logistic regression where quality >= 6: 1, else: 0
+response <- ifelse(wine_data$quality>=6,1,0)
+
+# creating X matrix (predictors)
+predictors <- wine_data[,-12]
+
+# normalizing the predictors
+predictors <- scale(predictors)
+
+# Creating design matrix with an intercept using the predictors
+X <- cbind(1, predictors)
+variables <- c("Intercept", colnames(X)[-1])
+
+# Taking sample from response and predictors
+response_sample <- response[sample_indices]
+X_sample <- X[sample_indices,]
+
+# Creating initial guess for the regression coefficients
+beta_init <- rep(0, ncol(X))
+```
+
+Log-Likelihood:
+```{r}
+# Logistic regression log-likelihood function
+log_likelihood <- function(beta, X, y) {
+  p <- 1 / (1 + exp(-X %*% beta))
+  p <- pmax(p, 1e-10)
+  p <- pmin(p, 1 - 1e-10)
+  return(sum(y * log(p) + (1 - y) * log(1 - p)))
+}
+
+# Gradient of the log-likelihood function
+log_likelihood_gradient <- function(beta, X, y) {
+  p <- 1 / (1 + exp(-X %*% beta))
+  p <- pmax(p, 1e-10)
+  p <- pmin(p, 1 - 1e-10)
+  return(t(X) %*% (y - p))
+}
+```
+
+GD:
+```{r}
+gd <- function(X, y, beta_init, learning_rate, max_iter, tol) {
+  beta <- beta_init
+  log_likelihood_values <- rep(NA, max_iter)  # Initialize with NA
+  
+  for (iter in 1:max_iter) {
+    gradient <- log_likelihood_gradient(beta, X, y)
+    
+    # Check for gradient stability
+    if (any(is.na(gradient))) stop("Gradient contains NA")
+    
+    # Update beta
+    beta <- beta + learning_rate * gradient
+    
+    # Compute log-likelihood and store it
+    ll <- log_likelihood(beta, X, y)
+    if (is.na(ll)) stop("Log-likelihood returned NA")
+    log_likelihood_values[iter] <- ll
+    
+    # Check convergence
+    if (iter > 1 && 
+        !is.na(log_likelihood_values[iter]) && 
+        !is.na(log_likelihood_values[iter - 1]) && 
+        abs(log_likelihood_values[iter] - log_likelihood_values[iter - 1]) < tol) {
+      log_likelihood_values <- log_likelihood_values[1:iter]
+      print(log_likelihood_values[iter])
+      break
+    }
+  }
+  print(log_likelihood_values[iter])
+  list(beta = beta, log_likelihood_values = log_likelihood_values)
+}
+```
+
+SGD:
+```{r}
+# SGD Implementation
+sgd <- function(X, y, beta_init, learning_rate, max_iter, tol) {
+  beta <- beta_init
+  log_likelihood_values <- numeric(max_iter)
+  n <- nrow(X)
+  
+  for (iter in 1:max_iter) {
+    for (i in 1:n) {
+      xi <- matrix(X[i, ], nrow = 1)
+      yi <- y[i]
+      gradient <- log_likelihood_gradient(beta, xi, yi)
+      beta <- beta + learning_rate * gradient
+    }
+    
+    # Store log-likelihood
+    ll <- log_likelihood(beta, X, y)
+    log_likelihood_values[iter] <- ll
+    
+    # Check convergence
+    if (iter > 1 && abs(log_likelihood_values[iter] - log_likelihood_values[iter - 1]) < tol) {
+      log_likelihood_values <- log_likelihood_values[1:iter]
+      print(log_likelihood_values[iter])
+      print(iter)
+      break
+    }
+  }
+  print(log_likelihood_values[iter])
+  list(beta = beta, log_likelihood_values = log_likelihood_values)
+}
+```
+
+Momentum:
+```{r}
+momentum <- function(X, y, beta_init, learning_rate, max_iter, tol, momentum_factor = 0.8) {
+  beta <- beta_init
+  velocity <- rep(0, length(beta))
+  log_likelihood_values <- numeric(max_iter)
+  n <- nrow(X)
+  
+  for (iter in 1:max_iter) {
+    for (i in 1:n) {
+      xi <- matrix(X[i, ], nrow = 1)
+      yi <- y[i]
+      gradient <- log_likelihood_gradient(beta, xi, yi)
+      velocity <- momentum_factor * velocity + learning_rate * gradient
+      beta <- beta + velocity
+    }
+    
+    # Store log-likelihood
+    ll <- log_likelihood(beta, X, y)
+    log_likelihood_values[iter] <- ll
+    
+    # Check convergence
+    if (iter > 1 && abs(log_likelihood_values[iter] - log_likelihood_values[iter - 1]) < tol) {
+      log_likelihood_values <- log_likelihood_values[1:iter]
+      print(log_likelihood_values[iter])
+      print(iter)
+      break
+    }
+  }
+  print(log_likelihood_values[iter])
+  list(beta = beta, log_likelihood_values = log_likelihood_values)
+}
+```
+
+RMSProp:
+```{r}
+rmsprop <- function(X, y, beta_init, learning_rate, max_iter, tol, rho = 0.9, epsilon = 1e-8) {
+  beta <- beta_init
+  avg_squared_gradient <- rep(0, length(beta))
+  log_likelihood_values <- numeric(max_iter)
+  n <- nrow(X)
+  
+  for (iter in 1:max_iter) {
+    for (i in 1:n) {
+      xi <- matrix(X[i, ], nrow = 1)
+      yi <- y[i]
+      gradient <- log_likelihood_gradient(beta, xi, yi)
+      avg_squared_gradient <- rho * avg_squared_gradient + (1 - rho) * (gradient^2)
+      beta <- beta + learning_rate * gradient / (sqrt(avg_squared_gradient) + epsilon)
+    }
+    
+    # Store log-likelihood
+    ll <- log_likelihood(beta, X, y)
+    log_likelihood_values[iter] <- ll
+    
+    # Check convergence
+    if (iter > 1 && abs(log_likelihood_values[iter] - log_likelihood_values[iter - 1]) < tol) {
+      log_likelihood_values <- log_likelihood_values[1:iter]
+      print(log_likelihood_values[iter])
+      print(iter)
+      break
+    }
+  }
+  print(log_likelihood_values[iter])
+  list(beta = beta, log_likelihood_values = log_likelihood_values)
+}
+```
+
+Adam:
+```{r}
+# Adam Implementation
+adam <- function(X, y, beta_init, learning_rate, max_iter, tol, beta1 = 0.9, beta2 = 0.999, epsilon = 1e-8) {
+  beta <- beta_init
+  m <- rep(0, length(beta))
+  v <- rep(0, length(beta))
+  log_likelihood_values <- numeric(max_iter)
+  n <- nrow(X)
+  
+  for (iter in 1:max_iter) {
+    for (i in 1:n) {
+      xi <- matrix(X[i, ], nrow = 1)
+      yi <- y[i]
+      gradient <- log_likelihood_gradient(beta, xi, yi)
+      m <- beta1 * m + (1 - beta1) * gradient
+      v <- beta2 * v + (1 - beta2) * (gradient^2)
+    
+      m_hat <- m / (1 - beta1^iter)
+      v_hat <- v / (1 - beta2^iter)
+    
+      beta <- beta + learning_rate * m_hat / (sqrt(v_hat) + epsilon)
+    }
+    
+    # Store log-likelihood
+    ll <- log_likelihood(beta, X, y)
+    log_likelihood_values[iter] <- ll
+    
+    # Check convergence
+    if (iter > 1 && abs(log_likelihood_values[iter] - log_likelihood_values[iter - 1]) < tol) {
+      log_likelihood_values <- log_likelihood_values[1:iter]
+      print(log_likelihood_values[iter])
+      print(iter)
+      break
+    }
+  }
+  print(log_likelihood_values[iter])
+  list(beta = beta, log_likelihood_values = log_likelihood_values)
+}
+```
+
+Hyperparameters:
+```{r}
+# Hyperparameters
+learning_rate <- 0.0025
+max_iter <- 1000
+tol <- 1e-6
+```
+
+SGD vs. GD:
+```{r}
+# Run GD and SGD
+system.time(
+  gd_result <- gd(X_sample, response_sample, beta_init, learning_rate, max_iter, tol)
+)
+system.time(
+  sgd_result <- sgd(X_sample, response_sample, beta_init, learning_rate, max_iter, tol)
+)
+
+# Extract log-likelihood values
+sgd_ll <- sgd_result$log_likelihood_values
+gd_ll <- gd_result$log_likelihood_values
+
+# Plot the convergence of log-likelihood values
+par(pty = "s")
+plot(sgd_ll, type = "l", col = "red", lwd = 2, xlim = range(c(0, 500)), ylim = range(c(sgd_ll, gd_ll)), 
+     xlab = "Iteration", ylab = "Log-Likelihood", main = "Convergence of SGD vs. GD")
+lines(gd_ll, col = "blue", lwd = 2)
+legend("bottomright", legend = c("SGD", "GD"), col = c("red", "blue"), lty = 1, lwd = 2)
+```
+
+SGD vs. Momentum:
+```{r}
+# Run Momentum and SGD
+system.time(
+  momentum_result <- momentum(X_sample, response_sample, beta_init, learning_rate, max_iter, tol)
+)
+
+# Extract log-likelihood values
+sgd_ll <- sgd_result$log_likelihood_values
+momentum_ll <- momentum_result$log_likelihood_values
+
+# Plot the convergence of log-likelihood values
+par(pty = "s")
+plot(sgd_ll, type = "l", col = "red", lwd = 2, xlim = range(c(0, 1000)), ylim = range(c(sgd_ll, momentum_ll)), 
+     xlab = "Iteration", ylab = "Log-Likelihood", main = "Convergence of SGD vs. Momentum")
+lines(momentum_ll, col = "darkorange", lwd = 2)
+legend("bottomright", legend = c("SGD", "Momentum"), col = c("red", "darkorange"), lty = 1, lwd = 2)
+```
+
+SGD vs. RMSProp:
+```{r}
+# Run SGD and RMSProp
+system.time(
+  rmsprop_result <- rmsprop(X_sample, response_sample, beta_init, learning_rate, max_iter, tol)
+)
+
+# Extract log-likelihood values
+sgd_ll <- sgd_result$log_likelihood_values
+rmsprop_ll <- rmsprop_result$log_likelihood_values
+
+# Plot the convergence of log-likelihood values
+par(pty = "s")
+plot(sgd_ll, type = "l", col = "red", lwd = 2, xlim = range(c(0, 1000)), ylim = range(c(sgd_ll, rmsprop_ll)), 
+     xlab = "Iteration", ylab = "Log-Likelihood", main = "Convergence of SGD vs. RMSProp")
+lines(rmsprop_ll, col = "darkgreen", lwd = 2)
+legend("bottomright", legend = c("SGD", "RMSProp"), col = c("red", "darkgreen"), lty = 1, lwd = 2)
+```
+
+SGD vs. Adam:
+```{r}
+# Run SGD and Adam
+system.time(
+  adam_result <- adam(X_sample, response_sample, beta_init, learning_rate, max_iter, tol)
+)
+
+# Extract log-likelihood values
+sgd_ll <- sgd_result$log_likelihood_values
+adam_ll <- adam_result$log_likelihood_values
+
+# Plot the convergence of log-likelihood values
+par(pty = "s")
+plot(sgd_ll, type = "l", col = "red", lwd = 2, xlim = range(c(0, 1000)), ylim = range(c(sgd_ll, adam_ll)), 
+     xlab = "Iteration", ylab = "Log-Likelihood", main = "Convergence of SGD vs. Adam")
+lines(adam_ll, col = "purple", lwd = 2)
+legend("bottomright", legend = c("SGD", "Adam"), col = c("red", "purple"), lty = 1, lwd = 2)
+```
+
+All at once:
+```{r}
+par(pty = "s")
+
+plot(sgd_ll, type = "l", col = "red", lwd = 2, xlim = range(c(0, 1000)), ylim = range(c(sgd_ll, gd_ll, momentum_ll, rmsprop_ll, adam_ll)), 
+     xlab = "Iteration", ylab = "Log-Likelihood", main = "Convergence of SGD, GD, Momentum, RMSProp, and Adam")
+lines(gd_ll, col = "blue", lwd = 2)
+lines(momentum_ll, col = "darkorange", lwd = 2)
+lines(rmsprop_ll, col = "darkgreen", lwd = 2)
+lines(adam_ll, col = "purple", lwd = 2)
+legend("bottomright", legend = c("SGD", "GD", "Momentum", "RMSProp", "Adam"), col = c("red", "blue", "darkorange", "darkgreen", "purple"), lty = 1, lwd = 2)
+```
+
+All at once (zoomed)
+```{r}
+par(pty = "s")
+
+plot(sgd_ll, type = "l", col = "red", lwd = 2, xlim = range(c(0, 1000)), ylim = range(c(sgd_ll, momentum_ll, rmsprop_ll, adam_ll)), 
+     xlab = "Iteration", ylab = "Log-Likelihood", main = "Convergence of SGD, GD, Momentum, RMSProp, and Adam")
+lines(gd_ll, col = "blue", lwd = 2)
+lines(momentum_ll, col = "darkorange", lwd = 2)
+lines(rmsprop_ll, col = "darkgreen", lwd = 2)
+lines(adam_ll, col = "purple", lwd = 2)
+legend("bottomright", legend = c("SGD", "GD", "Momentum", "RMSProp", "Adam"), col = c("red", "blue", "darkorange", "darkgreen", "purple"), lty = 1, lwd = 2)
+```
+
+Elapsed Time Bar Plot:
+```{r}
+elapsed_times <- c(SGD = 33.02, GD = 0.70, Momentum = 11.07, RMSProp = 32.61, Adam = 56.36)
+
+# Create a bar plot
+barplot(
+  elapsed_times,
+  main = "Elapsed Time of Optimization Algorithms",
+  ylab = "Elapsed Time (seconds)",
+  col = c("red", "blue", "darkorange", "darkgreen", "purple"),
+  ylim = c(0, max(elapsed_times) + 5)  # Add space above the tallest bar
+)
+
+# Add text labels to each bar
+text(
+  x = seq_along(elapsed_times),
+  y = elapsed_times,
+  labels = round(elapsed_times, 2),
+  pos = 3,  # Position text above the bars
+  cex = 0.8  # Text size
+)
+```
+
+Final Convergence Point Bar Plot:
+```{r}
+convergence <- c(SGD = 972.3541, GD = 1167.102, Momentum = 981.0177, RMSProp = 994.0116, Adam = 973.2914)
+
+# Create a bar plot
+barplot(
+  convergence,
+  main = "Final Convergence Value (lower = better)",
+  ylab = "Final Convergence Value",
+  col = c("red", "blue", "darkorange", "darkgreen", "purple"),
+  ylim = c(0, max(convergence) + 100)  # Add space above the tallest bar
+)
+
+# Add text labels to each bar
+text(
+  x = seq_along(convergence),
+  y = convergence,
+  labels = round(convergence, 2),
+  pos = 3,  # Position text above the bars
+  cex = 0.8  # Text size
+)
+```
+
+Iteration Count Bar Plot:
+```{r}
+iterations <- c(SGD = 637, GD = 1000, Momentum = 203, RMSProp = 637, Adam = 1000)
+
+# Create a bar plot
+barplot(
+  iterations,
+  main = "Count of iterations (lower = better)",
+  ylab = "Count of iterations",
+  col = c("red", "blue", "darkorange", "darkgreen", "purple"),
+  ylim = c(0, max(iterations) + 100)  # Add space above the tallest bar
+)
+
+# Add text labels to each bar
+text(
+  x = seq_along(iterations),
+  y = iterations,
+  labels = round(iterations, 2),
+  pos = 3,  # Position text above the bars
+  cex = 0.8  # Text size
+)
+```
