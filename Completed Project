@@ -337,54 +337,50 @@ All gradient descent algorithms are methods of minimizing an objective function,
 
 Standard, or batch Gradient Descent, computes the gradient with respect to the starting parameter theta for the entire dataset in one single move for each epoch:
 
-θ = θ − η · ∇θ J(θ) 
+$$ \theta = \theta - \eta \cdot \nabla\theta  \ J(\theta)$$
 
 Although fast for small datasets, since this method requires the entire dataset to be in memory all at once, the method is impossible for some computers if the dataset does not fit into memory all at once. It is guaranteed to at least converge to a local minimum, depending on the objective function.
 
 In contrast, Stochastic Gradient Descent, or SGD, performs one update at a time, on each pair of training example x(i) and label y(i), doing this for the entire dataset each epoch:
+$$ \theta = \theta - \eta \cdot \nabla\theta  \ J(\theta ; x(i); y(i))$$
 
-θ = θ − η · ∇θ J(θ; x(i); y(i)) 
 
 SGD, given an appropriate learning rate hyperparameter, is guaranteed to converge to the absolute minimum of a dataset, as its frequent updates cause the objective function to fluctuate, allowing SGD to overcome local minima to continue to move towards the absolute minimum. One shortcoming of SGD is that, if the learning rate is to small, it may take a very long time to converge, and if it is too large, then it may oscillate around the absolute minimum without ever reaching it.
 
 ### Review momentum-based methods and adaptive learning rages (e.g., Adam, RMSProp)
 The Momentum method expands upon SGD by keeping the core concept but adding a velocity fraction γ that keeps track of the update vector from the previous update, adding it to the current update:
 
-vt = γvt−1 + η∇θ J(θ)
-θ = θ − vt
+$$ v_t = \gamma v_{t-1} + \eta \nabla \theta \ J(\theta)$$
+$$ \theta = \theta - v_t$$
 
 This allows Momentum to overcome local minimum quicker, often leading to faster convergence and reduced oscillation once we get to the convergence points, as subesequent updates going in "opposite directions" will counteract each other.
 
 
-Nesterov Accelerated Gradient, or NAG (not implemented), effectively looks at updates ahead as well as behind, accounting for the expected future value of theta via an estimate θ−γ vt−1: 
-
-vt = γ vt−1 + η∇θ J(θ − γvt−1)
-θ = θ − vt
+Nesterov Accelerated Gradient, or NAG (not implemented), effectively looks at updates ahead as well as behind, accounting for the expected future value of theta via an estimate $\theta - \gamma  \ vt - 1$: 
+$$ v_t = \gamma v_{t - 1} + \eta\nabla\theta J(\theta - \gamma v_{t-1})$$
+$$ \theta = \theta - v_t$$
 
 This allows the "velocity" of the updates to slow down preemtively, further reducing the effects of oscillations.
 
 
-Adagrad (not implemented) is a method for dealing with sparse data, and performs larger updates for infrequent (important) parameters. It does this by dividing the learning rate η by sqrt(Gt,ii + epsilon), where G is a diagonal matrix where each element i, i is the sum of squares of the gradients with respect to theta up to epoch t, while epsilon is a tiny term to avoid division by 0:
+Adagrad (not implemented) is a method for dealing with sparse data, and performs larger updates for infrequent (important) parameters. It does this by dividing the learning rate $\eta$ by sqrt(Gt,ii + epsilon), where G is a diagonal matrix where each element i, i is the sum of squares of the gradients with respect to theta up to epoch t, while epsilon is a tiny term to avoid division by 0:
+$$ \theta_{t+1, i} = \theta_{t,i} - \eta / (\sqrt(G_{t,ii+\epsilon})) \cdot g_{t,i}$$
 
-θt+1,i = θt,i − η/(√Gt,ii + epsilon)· gt,i
 
-gt,i here is the gradient of the objective function with respect to parameter θi at epoch t. The problem with this is that as t grows, the denominator under the learning rate grows as well, never decreasing (the squares of the gradients can never be negative). This eventually causes our learning rate to vanish with enough iterations.
+gt,i here is the gradient of the objective function with respect to parameter $\theta_i$ at epoch t. The problem with this is that as t grows, the denominator under the learning rate grows as well, never decreasing (the squares of the gradients can never be negative). This eventually causes our learning rate to vanish with enough iterations.
 
 
 To fix this problem of Adagrad, we can utilize Root Mean Square Propagation (RMSProp) and Adaptive Moment Estimation (Adam). RMSProp instead divides the learning rate by an exponentially decaying average of squared gradients:
+$$[g2]_t=0.9E[g^2]_{t-1} + 0.1g_t^2$$
+$$\theta_{t+1} = \theta_t - \eta / (sqrt(E[g^2]_t + \epsilon)) g_t$$
 
-[g2]t = 0.9E[g^2]t−1 + 0.1gt^2
-θt+1 = θt − η/(√E[g2]t + epsilon) gt
+Adam stores both an exponentially decaying average of past squared gradients vt like RMSProp, as well as an exponentially decaying average of past gradients mt like momentum. Adam's decay rates are hyperparameters $\beta_1$ and $\beta_2$). Because of this, Adam receives the benefits of both past methods. Note that Adam must correct for the bias towards 0 of both vt and mt by calculating the bias-corrected first and second moment estimates:
+$$m_t = \beta_1 m_{t -1} + (1-\beta_1)g_t$$
+$$v_t = \beta_2 v_{t-1} + (1-\beta_2)g_t^2$$
+$$m_{t - hat} = m_t / (1-\beta_1^t)$$
+$$v_{t - hat} = v_t / (1-\beta_2^2)$$
+$$\theta_{t+1} = \theta_t - \eta / (\sqrt(v_{t - hat} + \epsilon)) m_{t-hat}$$
 
-Adam stores both an exponentially decaying average of past squared gradients vt like RMSProp, as well as an exponentially decaying average of past gradients mt like momentum. Adam's decay rates are hyperparameters β1 and β2). Because of this, Adam receives the benefits of both past methods. Note that Adam must correct for the bias towards 0 of both vt and mt by calculating the bias-corrected first and second moment estimates:
-
-mt = β1mt−1 + (1 − β1)gt
-vt = β2vt−1 + (1 − β2)gt^2
-
-mt-hat = mt/(1 − β1^t)
-vt-hat = vt/(1 − β2^t)
-
-θt+1 = θt − η/√(vt-hat + epsilon) mt-hat
 
 ### Implement SGD and Adam in R, apply them to a high-dimensional optimization problem, and compare the results
 Note that, as stated in the presentation, we are maximizing the log-likelihood function by altering beta, the vector of our coefficients. This is equivalent to minimizing the negative log-likelihood, thus this is still Gradient DESCENT, despite the addition you see here.
@@ -395,7 +391,7 @@ learning_rate <- 0.0025
 max_iter <- 1000
 tol <- 1e-6
 ```
-are the same for every function. This is to provide a level playing field in direct comparison of the 5 methods, and not a model to follow for actual implementation for a real-world problem. Momentum, RMSProp, and Adam would all benefit substantially from better-chosen hyperparameters, likely consistenly outperforming regular SGD. Note that function-specific hyperparameters, such as β1 and β2 for Adam, use their recommended default values stated in Ruder's article.
+are the same for every function. This is to provide a level playing field in direct comparison of the 5 methods, and not a model to follow for actual implementation for a real-world problem. Momentum, RMSProp, and Adam would all benefit substantially from better-chosen hyperparameters, likely consistently outperforming regular SGD. Note that function-specific hyperparameters, such as β1 and β2 for Adam, use their recommended default values stated in Ruder's article.
 
 Data Prep:
 ```{r}
