@@ -328,10 +328,6 @@ As can be seen, the two methods produced extremely similar results here, with th
 
 ## Objective: Explore how Stochastic Gradient Descent (SGD) helps overcome the computational cost of gradient evaluation in high dimensions.
 
-Article: Ruder, S. (2016). ”An Overview of Gradient Descent Optimization Algorithms."
-Link: https://arxiv.org/pdf/1609.04747
-
-
 ### Explain the differences between SGD and standard Gradient Descent
 All gradient descent algorithms are methods of minimizing an objective function, in this case negative log-likelihood, parameterized by theta, in this case beta, the vector of our coefficients. It does this by updating theta in the opposite direction of the gradient of the objective function at the current position of theta, using $\eta$ as the learning rate to determine the size of each step, effectively going "down" the slope of the objective function with the intent of reaching the absolute minimum, although some algorithms can get "caught" on a local minimum.
 
@@ -1048,7 +1044,7 @@ Berisha, V., Krantsevich, C., Hahn, P.R. et al. Digital medicine and the curse o
 
 Bengio, Y., Delalleau, O., & Le Roux, N. (2005). ”The Curse of Dimensionality for Local Kernel
 Machines.”
-
+Ruder, S. (2016). ”An Overview of Gradient Descent Optimization Algorithms." https://arxiv.org/pdf/1609.04747
 Zheyuan Hu, Khemraj Shukla, George Em Karniadakis, Kenji Kawaguchi,
 Tackling the curse of dimensionality with physics-informed neural networks,
 Neural Networks, Volume 176, 2024, 106369, ISSN 0893-6080, https://doi.org/10.1016/j.neunet.2024.106369
