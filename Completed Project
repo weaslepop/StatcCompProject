@@ -1055,6 +1055,7 @@ library(glmnet)
 
 ```{r}
 # Separate predictors and response
+wine_Quality_1 <- fread("winequality-white.csv")
 predictors <- as.matrix(Wine_Quality_1[, -ncol(Wine_Quality_1)])  
 response <- Wine_Quality_1$quality
 
@@ -1076,7 +1077,7 @@ print(paste("Best Lambda:", best_lambda))
 print(ridge_coefficients)
 ```
 
-As shown by the results, the ridge regression is able to calculate both a best lambda through cross-validation and new coefficients for the regressors. This technique is able to handle the increased number of regresors in the dataset, as when we initially worked on it in a previous assignment. The regression uses the lambda term to asses how to control the bias-variance tradeoff. Another key point is that the intercept is not included in the penalty term (lambda). This is to eusure that the procedure does not depend on the origin. Use cases for this type of regression include climate modeling, stock price forecasting, and genetic predictions. Ridge generally performs well in situations with many predictors and high collinearity. It is also less computationally expensive than lasso.
+As shown by the results, the ridge regression is able to calculate both a best lambda through cross-validation and new coefficients for the regressors. This technique is able to handle the increased number of regressors in the dataset, as when we initially worked on it in a previous assignment. The regression uses the lambda term to asses how to control the bias-variance tradeoff. Another key point is that the intercept is not included in the penalty term (lambda). This is to eusure that the procedure does not depend on the origin. Use cases for this type of regression include climate modeling, stock price forecasting, and genetic predictions. Ridge generally performs well in situations with many predictors and high collinearity. It is also less computationally expensive than lasso.
 
 
 # References
